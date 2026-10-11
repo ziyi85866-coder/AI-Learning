@@ -5,7 +5,7 @@ import json
 import datetime
 import ast
 import operator
-
+from tools.calculator import Calculator
 
 # 帮助文本定义
 help_text = """
@@ -57,6 +57,7 @@ class ChatBot:
             api_key=os.getenv("ARK_API_KEY"),
             base_url="https://ark.cn-beijing.volces.com/api/coding/v3"
         )
+        self.calculator = Calculator()
         self.model = "deepseek-v4-1-flash-260910"
         self.system_prompt = self.build_system_prompt(
             role="Python 和 Agent 开发老师",
@@ -78,7 +79,9 @@ class ChatBot:
 
         self.register_tool(time_tool, self.show_time)
 
+
         self.messages = self.load_messages()
+
 
         print("ChatBot 创建成功！")
     def chat(self):
@@ -272,50 +275,12 @@ class ChatBot:
 
     def show_calc(self, expression=""):
         try:
-            result = self.safe_calculate(expression)
+            result = self.calculator.calculate(expression)
             return str(result)
         except ValueError as e:
             return str(e)
 
-    def safe_calculate(self, expression):
-        operations = {
-            ast.Add: operator.add,
-            ast.Sub: operator.sub,
-            ast.Mult: operator.mul,
-            ast.Div: operator.truediv,
-        }
 
-        if len(expression) > 100:
-            raise ValueError("表达式过长")
-
-        def calculate(node):
-            if isinstance(node, ast.Constant) and type(node.value) in (int, float):
-                if abs(node.value) > 1e12:
-                    raise ValueError("数字过大")
-                return node.value
-
-            if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-                value = calculate(node.operand)
-                return value if isinstance(node.op, ast.UAdd) else -value
-
-            if isinstance(node, ast.BinOp) and type(node.op) in operations:
-                left = calculate(node.left)
-                right = calculate(node.right)
-
-                if abs(left) > 1e12 or abs(right) > 1e12:
-                    raise ValueError("数字过大")
-
-                result = operations[type(node.op)](left, right)
-
-                if abs(result) > 1e12:
-                    raise ValueError("结果过大")
-
-                return result
-
-            raise ValueError("不支持的表达式")
-
-        tree = ast.parse(expression, mode="eval")
-        return calculate(tree.body)
 
     def register_tool(self, tool, func):
         self.tools.append(tool)
