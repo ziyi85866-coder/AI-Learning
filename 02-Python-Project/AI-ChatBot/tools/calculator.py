@@ -4,7 +4,7 @@ import operator
 
 class Calculator:
 
-    def calculate(self, expression):
+    def run(self, expression):
         operations = {
             ast.Add: operator.add,
             ast.Sub: operator.sub,

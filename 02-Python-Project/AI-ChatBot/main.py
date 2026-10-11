@@ -2,10 +2,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import os
 import json
-import datetime
+
 import ast
 import operator
 from tools.calculator import Calculator
+from tools.time_tool import TimeTool
+from managers.conversation_manager import ConversationManager
 
 # 帮助文本定义
 help_text = """
@@ -58,6 +60,7 @@ class ChatBot:
             base_url="https://ark.cn-beijing.volces.com/api/coding/v3"
         )
         self.calculator = Calculator()
+        self.time_tool = TimeTool()
         self.model = "deepseek-v4-1-flash-260910"
         self.system_prompt = self.build_system_prompt(
             role="Python 和 Agent 开发老师",
@@ -79,8 +82,11 @@ class ChatBot:
 
         self.register_tool(time_tool, self.show_time)
 
+        self.conversation_manager = ConversationManager(
+            self.system_prompt
+        )
 
-        self.messages = self.load_messages()
+        self.messages = self.conversation_manager.load_messages()
 
 
         print("ChatBot 创建成功！")
@@ -107,7 +113,9 @@ class ChatBot:
                     "content": answer
                 }
             )
-            self.save_messages()
+            self.conversation_manager.save_messages(
+                self.messages
+            )
             print(f"\nAI：{answer}")
         else:
             self.messages.pop()
@@ -127,36 +135,25 @@ class ChatBot:
                 # stream=True
             )
 
-            # answer = response.choices[0].message.content
-            # answer = ""
             message = response.choices[0].message
-            # print(type(message))
-            # print(dir(message))
+
             # 没有工具调用，直接返回文本
             if not message.tool_calls:
                 return message.content
-            # else:
-            # 存在工具调用
+
             self.messages.append(message.model_dump())
 
-            # msg_dict = message.model_dump()
-            # self.messages.append(msg_dict)
             tool_call = message.tool_calls[0]
             tool_name = tool_call.function.name
 
-
             arguments = json.loads(tool_call.function.arguments)
-            # expression = arguments["expression"]
 
-            # print(expression)
             # 执行计算
-            # result = self.show_calc(expression)
 
             tool = self.tool_dispatch[tool_name]
             if tool is None:
                 return f"未知工具：{tool_name}"
             result = tool(**arguments)
-
 
             # 追加tool角色消息
             self.messages.append(
@@ -175,14 +172,6 @@ class ChatBot:
 
             return answer
 
-            # for chunk in response:
-            #     content = chunk.choices[0].delta.content
-            #     if content:
-            #         print(content, end="", flush=True)
-            #         answer += content
-            #
-            # print()
-            # return answer
         except Exception as e:
             print(f"请求 AI 失败：{e}")
             return ""
@@ -264,18 +253,19 @@ class ChatBot:
 
     def show_help(self,argument=""):
         print(help_text)
+
     def show_model(self,argument=""):
         # print("当前模型：",self.model)
         print(f"当前模型：{self.model}")
 
-    def show_time(self):
-        now = datetime.datetime.now()
+    def show_time(self, argument=""):
+        return self.time_tool.run()
 
         return now.strftime("%Y-%m-%d %H:%M:%S")
 
     def show_calc(self, expression=""):
         try:
-            result = self.calculator.calculate(expression)
+            result = self.calculator.run(expression)
             return str(result)
         except ValueError as e:
             return str(e)
