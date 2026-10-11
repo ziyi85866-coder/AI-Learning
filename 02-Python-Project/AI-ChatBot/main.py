@@ -87,7 +87,9 @@ class ChatBot:
         )
 
         self.messages = self.conversation_manager.load_messages()
-
+        self.conversation_manager = ConversationManager(
+            self.system_prompt
+        )
 
         print("ChatBot 创建成功！")
     def chat(self):
@@ -176,53 +178,12 @@ class ChatBot:
             print(f"请求 AI 失败：{e}")
             return ""
 
-    def load_messages(self):
-        try:
-            with open("messages.json", "r", encoding="utf-8") as file:
-                text = file.read()
-                messages = json.loads(text)
-                return messages
-        except:
-            return [
-                {
-                    "role": "system",
-                    "content": self.system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": "什么是 Python 列表？"
-                },
-                {
-                    "role": "assistant",
-                    "content": """📖 概念
-            Python 列表（List）是一种有序、可修改的数据类型，用于保存多个元素。
-            💻 示例
-            ```python
-            numbers = [1, 2, 3]
-            print(numbers[0])
-            ```
-            ```text
-            📝 总结
-            ```
-            """  # 你原来缺少结尾三引号！
-                }
-            ]
-    def save_messages(self):
-        with open("messages.json", "w", encoding="utf-8") as file:
-            file.write(json.dumps(
-                self.messages,
-                ensure_ascii=False
-            )
-            )
 
-    def clear_messages(self,argument=""):
-        self.messages = [
-            {
-                "role": "system",
-                "content": self.system_prompt
-            }
-        ]
-        self.save_messages()
+
+    def clear_messages(self, argument=""):
+
+        self.messages = self.conversation_manager.clear_messages()
+
         print("聊天记录已清空！")
     def show_history(self,argument=""):
         for message in self.messages:

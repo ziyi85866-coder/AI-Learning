@@ -45,3 +45,16 @@ class ConversationManager:
                 ensure_ascii=False,
                 indent=4
             )
+
+    def clear_messages(self):
+
+        messages = [
+            {
+                "role": "system",
+                "content": self.system_prompt
+            }
+        ]
+
+        self.save_messages(messages)
+
+        return messages
