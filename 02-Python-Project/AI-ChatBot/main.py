@@ -8,7 +8,7 @@ import operator
 from tools.calculator import Calculator
 from tools.time_tool import TimeTool
 from managers.conversation_manager import ConversationManager
-
+from managers.prompt_manager import PromptManager
 # 帮助文本定义
 help_text = """
 === 命令列表 ===
@@ -62,7 +62,9 @@ class ChatBot:
         self.calculator = Calculator()
         self.time_tool = TimeTool()
         self.model = "deepseek-v4-1-flash-260910"
-        self.system_prompt = self.build_system_prompt(
+        self.prompt_manager = PromptManager()
+        self.system_prompt = self.prompt_manager.build_prompt(
+            "system_prompt.txt",
             role="Python 和 Agent 开发老师",
             topic="Agent 开发",
             style="回答简洁，分步骤讲解，优先提供可运行代码。"
@@ -90,6 +92,7 @@ class ChatBot:
         self.conversation_manager = ConversationManager(
             self.system_prompt
         )
+
 
         print("ChatBot 创建成功！")
     def chat(self):
@@ -178,13 +181,12 @@ class ChatBot:
             print(f"请求 AI 失败：{e}")
             return ""
 
-
-
     def clear_messages(self, argument=""):
 
         self.messages = self.conversation_manager.clear_messages()
 
         print("聊天记录已清空！")
+
     def show_history(self,argument=""):
         for message in self.messages:
             role = message["role"]
@@ -240,20 +242,7 @@ class ChatBot:
 
         self.tool_dispatch[tool_name] = func
 
-    def build_system_prompt(self, role, topic, style):
-        with open(
-                "prompts/system_prompt.txt",
-                "r",
-                encoding="utf-8"
-        ) as f:
-            template = f.read()
 
-        return template.format(
-            role=role,
-            topic=topic,
-            style=style
-        )
-            
 bot = ChatBot()
 while bot.chat():  # ChatBot.chat(bot)
     pass
