@@ -58,16 +58,11 @@ class ChatBot:
             base_url="https://ark.cn-beijing.volces.com/api/coding/v3"
         )
         self.model = "deepseek-v4-1-flash-260910"
-        with open(
-                "prompts/system_prompt.txt",
-                "r",
-                encoding="utf-8"
-        ) as f:
-            self.system_prompt = self.build_system_prompt(
-                role="Python 和 Agent 开发老师",
-                topic="Agent 开发",
-                style="回答简洁，分步骤讲解，优先提供可运行代码。"
-            )
+        self.system_prompt = self.build_system_prompt(
+            role="Python 和 Agent 开发老师",
+            topic="Agent 开发",
+            style="回答简洁，分步骤讲解，优先提供可运行代码。"
+        )
         self.commands = {
             "/help": self.show_help,
             "/history": self.show_history,
@@ -213,7 +208,11 @@ class ChatBot:
             ```python
             numbers = [1, 2, 3]
             print(numbers[0])
-            ```"""  # 你原来缺少结尾三引号！
+            ```
+            ```text
+            📝 总结
+            ```
+            """  # 你原来缺少结尾三引号！
                 }
             ]
     def save_messages(self):

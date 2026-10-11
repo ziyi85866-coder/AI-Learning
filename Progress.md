@@ -51,3 +51,25 @@
 ### 自我评分
 
 ⭐⭐⭐⭐⭐
+
+
+
+contacts（List）
+
+↓
+
+json.dumps()
+
+↓
+
+JSON字符串
+
+↓
+
+file.write()
+
+↓
+
+contacts.json
+
+![1791682138024](C:\Users\ZZY\AppData\Roaming\Typora\typora-user-images\1791682138024.png)
