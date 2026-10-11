@@ -1,0 +1,16 @@
+# Python 虚拟环境、缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+
+# AI-ChatBot 项目单独忽略
+02-Python-Project/AI-ChatBot/.env
+02-Python-Project/AI-ChatBot/messages.json
+
+# 系统文件
+.DS_Store
+Thumbs.db
