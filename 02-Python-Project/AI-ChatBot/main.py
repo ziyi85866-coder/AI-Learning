@@ -1,14 +1,11 @@
-from dotenv import load_dotenv
-from openai import OpenAI
-import os
 import json
-
-import ast
-import operator
+from openai import OpenAI
 from tools.calculator import Calculator
 from tools.time_tool import TimeTool
 from managers.conversation_manager import ConversationManager
 from managers.prompt_manager import PromptManager
+from config.config_manager import ConfigManager
+
 # 帮助文本定义
 help_text = """
 === 命令列表 ===
@@ -53,15 +50,17 @@ class ChatBot:
 
     def __init__(self):
 
-        load_dotenv()
+        self.config = ConfigManager()
 
         self.client = OpenAI(
-            api_key=os.getenv("ARK_API_KEY"),
-            base_url="https://ark.cn-beijing.volces.com/api/coding/v3"
+            api_key=self.config.api_key,
+            base_url=self.config.base_url
         )
+
+        self.model = self.config.model
         self.calculator = Calculator()
         self.time_tool = TimeTool()
-        self.model = "deepseek-v4-1-flash-260910"
+
         self.prompt_manager = PromptManager()
         self.system_prompt = self.prompt_manager.build_prompt(
             "system_prompt.txt",
