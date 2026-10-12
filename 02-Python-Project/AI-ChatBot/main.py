@@ -5,7 +5,7 @@ from tools.time_tool import TimeTool
 from managers.conversation_manager import ConversationManager
 from managers.prompt_manager import PromptManager
 from config.config_manager import ConfigManager
-
+from utils.logger import setup_logger
 # 帮助文本定义
 help_text = """
 === 命令列表 ===
@@ -92,7 +92,8 @@ class ChatBot:
             self.system_prompt
         )
 
-
+        self.logger = setup_logger()
+        self.logger.info("ChatBot 初始化成功")
         print("ChatBot 创建成功！")
     def chat(self):
 
@@ -132,6 +133,7 @@ class ChatBot:
 
     def ask_ai(self):
         try:
+            self.logger.info("开始请求大模型，模型：%s", self.model)
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=self.messages,
@@ -149,12 +151,13 @@ class ChatBot:
 
             tool_call = message.tool_calls[0]
             tool_name = tool_call.function.name
+            self.logger.info("模型请求调用工具：%s", tool_name)
 
             arguments = json.loads(tool_call.function.arguments)
 
             # 执行计算
+            tool = self.tool_dispatch.get(tool_name)
 
-            tool = self.tool_dispatch[tool_name]
             if tool is None:
                 return f"未知工具：{tool_name}"
             result = tool(**arguments)
@@ -176,9 +179,9 @@ class ChatBot:
 
             return answer
 
-        except Exception as e:
-            print(f"请求 AI 失败：{e}")
-            return ""
+        except Exception:
+            self.logger.exception("大模型请求失败")
+            return "抱歉，AI 服务暂时不可用，请稍后重试。"
 
     def clear_messages(self, argument=""):
 

@@ -6,7 +6,7 @@ __pycache__/
 .venv/
 venv/
 .env
-
+**/logs/
 # AI-ChatBot 项目单独忽略
 02-Python-Project/AI-ChatBot/.env
 02-Python-Project/AI-ChatBot/messages.json
