@@ -215,7 +215,8 @@ class ChatBot:
 
         self.conversation_manager.save_messages(self.messages)
 
-        print(f"\nAI：{answer}")
+        if not self.streamed:
+            print(f"\nAI：{answer}")
         return True
 
         # 返回 True，让 while 循环继续
@@ -224,127 +225,146 @@ class ChatBot:
     # ==================== 5. 大模型请求与工具调用 ====================
 
     def ask_ai(self):
-        """
-        负责与大模型交互。
-
-        当前支持两种情况：
-
-        情况一：模型直接回答
-            请求模型 → 返回回答
-
-        情况二：模型需要调用工具
-            请求模型 → 获取工具调用信息
-            → 执行 Python 工具
-            → 把工具结果交还给模型
-            → 获取最终回答
-
-        当前版本只处理模型返回的第一个工具调用。
-        """
         original_length = len(self.messages)
+        self.streamed = False
 
         try:
-            # 记录模型请求日志
-            self.logger.info(
-                "开始请求大模型，模型：%s",
-                self.model
-            )
-            
-            # 第一次请求大模型
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.messages,
-                tools=self.tools,
-                # stream=True
-            )
+            # 最多允许模型连续进行 5 轮工具调用
+            max_rounds = 5
 
-            # 获取模型返回的第一条消息
-            message = response.choices[0].message
+            for round_index in range(max_rounds + 1):
+                self.logger.info(
+                    "开始流式请求，模型：%s，第 %s 轮",
+                    self.model,
+                    round_index + 1
+                )
 
-            # 如果模型没有请求调用工具
-            # 说明这次可以直接返回文本回答
-            if not message.tool_calls:
-                return message.content
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=self.messages,
+                    tools=self.tools,
+                    stream=True
+                )
 
-            # 如果模型请求了工具：
-            # 先保存模型发出的工具调用消息
-            #
-            # model_dump() 将 SDK 消息对象转换为字典
-            # 方便加入 self.messages
-            self.messages.append(message.model_dump())
+                # 收集当前这一轮生成的文本
+                text_parts = []
 
-            # 获取第一个工具调用
-            tool_call = message.tool_calls[0]
+                # 收集工具调用的增量数据
+                tool_calls = {}
 
-            # 获取工具名称，例如 calculator 或 time
-            tool_name = tool_call.function.name
+                # 记录这一轮是否已经打印过 AI：前缀
+                printed_prefix = False
 
-            # 记录工具调用日志
-            self.logger.info(
-                "模型请求调用工具：%s",
-                tool_name
-            )
+                # 逐块接收流式响应
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
 
-            # 模型返回的 arguments 通常是 JSON 字符串
-            # json.loads() 将 JSON 字符串转换为 Python 对象
-            #
-            # 例如：
-            # '{"expression": "2+3"}'
-            # 转换为：
-            # {"expression": "2+3"}
-            arguments = json.loads(
-                tool_call.function.arguments
-            )
+                    delta = chunk.choices[0].delta
 
-            # 根据工具名称，从字典中找到对应的 Python 方法
-            # get() 在找不到工具时返回 None
-            tool = self.tool_dispatch.get(tool_name)
+                    # 1. 处理普通文本增量
+                    if delta.content:
+                        if not printed_prefix:
+                            print("\nAI：", end="", flush=True)
+                            printed_prefix = True
 
-            if tool is None:
-                raise ValueError(f"未知工具：{tool_name}")
-            # 执行工具
-            #
-            # **arguments 表示字典解包
-            # 例如：
-            # {"expression": "2+3"}
-            #
-            # tool(**arguments)
-            # 相当于：
-            # tool(expression="2+3")
-            result = tool(**arguments)
+                        print(delta.content, end="", flush=True)
+                        text_parts.append(delta.content)
+                        self.streamed = True
 
-            # 将工具执行结果追加到消息列表
-            #
-            # tool_call_id 用于告诉模型：
-            # 这条工具结果对应哪一次工具调用
-            self.messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result
-                }
-            )
+                    # 2. 处理工具调用增量
+                    for tool_delta in (delta.tool_calls or []):
+                        index = tool_delta.index
 
-            # 第二次请求大模型
-            # 这次把工具执行结果也发送给模型
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.messages
-            )
+                        if index not in tool_calls:
+                            tool_calls[index] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": ""
+                            }
 
-            # 获取模型结合工具结果生成的最终回答
-            answer = response.choices[0].message.content
+                        item = tool_calls[index]
 
-            return answer
+                        if tool_delta.id:
+                            item["id"] += tool_delta.id
 
+                        if tool_delta.function:
+                            if tool_delta.function.name:
+                                item["name"] += tool_delta.function.name
+
+                            if tool_delta.function.arguments:
+                                item["arguments"] += (
+                                    tool_delta.function.arguments
+                                )
+
+                # 本轮流式接收完成
+                if printed_prefix:
+                    print()
+
+                # 3. 没有工具调用：直接返回完整回答
+                if not tool_calls:
+                    return "".join(text_parts)
+
+                # 4. 有工具调用：先保存模型的工具调用消息
+                ordered_calls = [
+                    tool_calls[index]
+                    for index in sorted(tool_calls)
+                ]
+
+                self.messages.append({
+                    "role": "assistant",
+                    "content": "".join(text_parts) or None,
+                    "tool_calls": [
+                        {
+                            "id": item["id"],
+                            "type": "function",
+                            "function": {
+                                "name": item["name"],
+                                "arguments": item["arguments"]
+                            }
+                        }
+                        for item in ordered_calls
+                    ]
+                })
+
+                # 5. 执行本轮全部工具
+                for item in ordered_calls:
+                    tool_name = item["name"]
+
+                    self.logger.info(
+                        "模型请求调用工具：%s",
+                        tool_name
+                    )
+
+                    arguments = json.loads(item["arguments"])
+
+                    if not isinstance(arguments, dict):
+                        raise ValueError("工具参数必须是 JSON 对象")
+
+                    tool = self.tool_dispatch.get(tool_name)
+
+                    if tool is None:
+                        raise ValueError(f"未知工具：{tool_name}")
+
+                    result = tool(**arguments)
+
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": item["id"],
+                        "content": str(result)
+                    })
+
+            # 超过最大工具调用轮数
+            raise RuntimeError("工具调用轮数超过限制")
 
         except Exception:
-
-            # 删除本次 ask_ai() 新增的不完整消息
+            # 删除 ask_ai 本次新增的不完整消息
             del self.messages[original_length:]
-            # 记录完整错误信息
-            self.logger.exception("AI 请求或工具调用失败")
-            # None 表示本次请求失败
+
+            self.logger.exception("流式请求或工具调用失败")
+
             return None
+
     # ==================== 6. 聊天记录管理 ====================
 
     def clear_messages(self, argument=""):
@@ -476,16 +496,39 @@ class ChatBot:
         # 建立“工具名称 → Python 方法”的映射
         self.tool_dispatch[tool_name] = func
 
+    def ask_ai_stream(self):
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=self.messages,
+            stream=True,
+        )
+
+        chunks = []
+
+        print("\nAI: ", end="", flush=True)
+
+        for chunk in response:
+            if not chunk.choices:
+                continue
+
+            content = chunk.choices[0].delta.content
+
+            if content:
+                print(content, end="", flush=True)
+                chunks.append(content)
+
+        print()
+        return "".join(chunks)
 
 # ==================== 9. 程序入口 ====================
 
 # 创建 ChatBot 实例
 # 会自动调用 ChatBot.__init__()
-bot = ChatBot()
+if __name__ == "__main__":
+    bot = ChatBot()
 
-# 每次循环执行一轮聊天
-# chat() 返回 False 时退出循环
-while bot.chat():
-    pass
+    while bot.chat():
+        pass
 
-print("程序结束")
+    print("程序结束")
+
