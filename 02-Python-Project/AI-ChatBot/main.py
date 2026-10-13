@@ -24,6 +24,8 @@ help_text = """
 /model    查看当前模型
 /time     查看当前时间
 /calc     计算数学表达式
+/search   查找消息
+/stats    聊天统计功能
 exit      退出程序
 """
 
@@ -66,6 +68,17 @@ time_tool = {
     }
 }
 
+
+def search_messages(messages, keyword):
+    results = []
+
+    for message in messages:
+        content = message.get("content") or ""
+
+        if keyword in content:
+            results.append(message)
+
+    return results
 
 # ==================== 3. ChatBot 主类 ====================
 
@@ -130,6 +143,8 @@ class ChatBot:
             "/model": self.show_model,
             "/time": self.show_time,
             "/calc": self.show_calc,
+            "/search": self.show_search,
+            "/stats": self.show_stats,
         }
 
         # 保存提供给大模型的工具定义
@@ -520,6 +535,33 @@ class ChatBot:
         print()
         return "".join(chunks)
 
+
+
+    def show_search(self, keyword):
+        if not keyword:
+            print("用法：/search 关键词")
+            return
+
+        results = search_messages(self.messages, keyword)
+
+        for message in results:
+            print(message["content"])
+
+        print(f"共找到 {len(results)} 条消息")
+
+    def add_message(self,message):
+        self.messages.append(message)
+
+    def show_stats(self,argument):
+        user_count = 0
+        assistant_count = 0
+        for message in self.messages:
+            if message["role"] == "user":
+                user_count += 1
+            if message["role"] == "assistant":
+                assistant_count += 1
+        total_count = user_count + assistant_count
+        print(f"用户消息{user_count}条, AI回复{assistant_count}条,总消息{total_count}条")
 # ==================== 9. 程序入口 ====================
 
 # 创建 ChatBot 实例
