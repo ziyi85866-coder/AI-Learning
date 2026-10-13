@@ -53,7 +53,23 @@ calculator_tool = {
         }
     }
 }
-
+text_count_tool = {
+    "type": "function",
+    "function": {
+        "name": "count_text",
+        "description": "Count the number of characters in a text.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "Text to count characters in"
+                }
+            },
+            "required": ["text"]
+        }
+    }
+}
 # 时间工具不需要输入参数，所以 properties 为空字典
 time_tool = {
     "type": "function",
@@ -79,6 +95,21 @@ def search_messages(messages, keyword):
             results.append(message)
 
     return results
+
+def calculate_stats(messages):
+    user_count = 0
+    assistant_count = 0
+    for message in messages:
+        if message["role"] == "user":
+            user_count += 1
+        if message["role"] == "assistant":
+            assistant_count += 1
+    total_count = user_count + assistant_count
+    return {
+        "user": user_count,
+        "assistant": assistant_count,
+        "total": total_count
+    }
 
 # ==================== 3. ChatBot 主类 ====================
 
@@ -159,7 +190,8 @@ class ChatBot:
 
         # 注册时间工具
         self.register_tool(time_tool, self.show_time)
-
+        #
+        self.register_tool(text_count_tool, self.count_text)
         # 创建聊天记录管理器
         self.conversation_manager = ConversationManager(
             self.system_prompt
@@ -553,15 +585,15 @@ class ChatBot:
         self.messages.append(message)
 
     def show_stats(self,argument):
-        user_count = 0
-        assistant_count = 0
-        for message in self.messages:
-            if message["role"] == "user":
-                user_count += 1
-            if message["role"] == "assistant":
-                assistant_count += 1
-        total_count = user_count + assistant_count
-        print(f"用户消息{user_count}条, AI回复{assistant_count}条,总消息{total_count}条")
+
+        stats = calculate_stats(self.messages)
+        print(f"用户消息：{stats['user']} 条")
+        print(f"AI 消息：{stats['assistant']} 条")
+        print(f"总消息数：{stats['total']} 条")
+
+    def count_text(self,text):
+        num = len(text)
+        return num
 # ==================== 9. 程序入口 ====================
 
 # 创建 ChatBot 实例
